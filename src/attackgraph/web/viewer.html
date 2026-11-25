@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATTACKGRAPH</title>
+<style>
+:root {
+  --paper: #ECEEE9; --grid: #D9DCD5; --card: #FAFAF7; --ink: #18212B; --steel: #5E6C79;
+  --rule: #CBD0CA; --soft: #F4F5F1; --path: #1D4ED8; --path-bg: #E3EAFC;
+  --low: #5F8F7B; --medium: #B8942A; --high: #D9732B; --critical: #B01E3C; --none: #8A96A0;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 14px/1.45 var(--sans); display: flex; flex-direction: column; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--path); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-size: 12px; }
+
+/* header */
+#top { display: flex; align-items: center; gap: 20px; padding: 10px 18px; background: var(--ink); color: #E9ECE6; flex-wrap: wrap; }
+#top .brand { font-weight: 700; letter-spacing: .14em; font-size: 15px; }
+#top .name { color: #AEB8C0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 36ch; }
+#top .grow { flex: 1; }
+.meter { display: flex; align-items: center; gap: 10px; }
+.cells { display: flex; gap: 2px; }
+.cells i { width: 9px; height: 18px; background: #34414E; display: block; }
+.meter b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.meter span { color: #AEB8C0; }
+.tbtn { background: transparent; border: 1px solid #4B5967; color: #E9ECE6; padding: 5px 11px; border-radius: 4px; }
+.tbtn:hover { background: #26323E; }
+#top select { background: #26323E; border: 1px solid #4B5967; border-radius: 4px; padding: 5px 8px; color: #E9ECE6; max-width: 22ch; }
+
+/* layout */
+#app { flex: 1; min-height: 0; display: grid; grid-template-columns: 390px 1fr; }
+#side { border-right: 1px solid var(--rule); background: var(--soft); display: flex; flex-direction: column; min-height: 0; }
+#stage { position: relative; min-height: 0; overflow: hidden; }
+@media (max-width: 880px) {
+  body { height: auto; }
+  #app { grid-template-columns: 1fr; display: flex; flex-direction: column-reverse; }
+  #stage { height: 62vh; }
+  #side { border-right: 0; border-top: 1px solid var(--rule); }
+}
+
+/* sidebar */
+.tabs { display: flex; border-bottom: 1px solid var(--rule); }
+.tabs button { flex: 1; padding: 10px 6px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--steel); font-weight: 600; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--path); }
+.tabs small { font-weight: 400; margin-left: 4px; }
+.list { overflow: auto; flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.notes { margin: 8px 8px 0; padding: 8px 10px; border: 1px solid var(--medium); background: #F6EFD6; border-radius: 4px; }
+.item { display: flex; gap: 10px; text-align: left; background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 9px 10px; width: 100%; }
+.item:hover { border-color: var(--steel); }
+.item.on { border-color: var(--path); background: var(--path-bg); box-shadow: inset 3px 0 0 var(--path); }
+.item .body { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.item .sum { font-weight: 600; }
+.item .meta { color: var(--steel); font-size: 12.5px; }
+.risk { flex: none; width: 38px; height: 30px; display: grid; place-items: center; color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; border-radius: 3px; }
+.r-critical, .bg-critical { background: var(--critical); } .r-high, .bg-high { background: var(--high); }
+.r-medium, .bg-medium { background: var(--medium); } .r-low, .bg-low { background: var(--low); } .r-none { background: var(--none); }
+.dot { flex: none; width: 11px; height: 11px; border-radius: 50%; margin-top: 4px; }
+.dot.hollow { background: transparent !important; border: 2px solid currentColor; }
+.c-critical { color: var(--critical); } .c-high { color: var(--high); } .c-medium { color: var(--medium); } .c-low { color: var(--low); }
+.dot.c-critical { background: var(--critical); } .dot.c-high { background: var(--high); } .dot.c-medium { background: var(--medium); } .dot.c-low { background: var(--low); }
+ol.steps { margin: 0 0 4px; padding: 8px 10px 8px 30px; background: var(--card); border: 1px solid var(--path); border-top: 0; border-radius: 0 0 4px 4px; margin-top: -7px; }
+ol.steps li { margin: 5px 0; } ol.steps .p { color: var(--steel); font-size: 12.5px; }
+.act { color: var(--ink); font-size: 13px; }
+.row2 { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 4px; }
+.pill { border: 1px solid var(--rule); background: var(--card); border-radius: 99px; padding: 2px 10px; font-size: 12.5px; }
+.pill[aria-pressed="true"] { background: var(--path); border-color: var(--path); color: #fff; }
+.search { margin: 8px 8px 0; padding: 7px 10px; border: 1px solid var(--rule); border-radius: 4px; background: var(--card); }
+.empty { color: var(--steel); padding: 18px 12px; }
+
+/* stage */
+#svg { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; background: var(--paper); }
+#svg.panning { cursor: grabbing; }
+.card { cursor: grab; } .card.drag { cursor: grabbing; }
+.frow { cursor: pointer; }
+.frow:hover rect.hit { fill: #E9ECE4; }
+.frow.sel rect.hit { fill: var(--path-bg); }
+#tools { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+#tools button { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 10px; }
+#legend { position: absolute; right: 12px; bottom: 12px; background: rgba(250,250,247,.92); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; font-size: 12.5px; display: grid; gap: 3px; }
+#legend svg { vertical-align: middle; margin-right: 6px; }
+#banner { position: absolute; left: 12px; top: 12px; right: 270px; background: var(--card); border: 1px solid var(--path); border-radius: 4px; padding: 8px 12px; display: flex; gap: 12px; align-items: center; }
+#banner button { margin-left: auto; background: none; border: 1px solid var(--rule); border-radius: 4px; padding: 3px 10px; }
+#inspector { position: absolute; left: 12px; bottom: 12px; width: min(380px, calc(100% - 24px)); max-height: 52%; overflow: auto; background: var(--card); border: 1px solid var(--ink); border-radius: 4px; padding: 12px 14px; box-shadow: 4px 4px 0 rgba(24,33,43,.12); }
+#inspector h3 { margin: 0 0 6px; font-size: 15px; padding-right: 26px; }
+#inspector .x { position: absolute; right: 8px; top: 6px; background: none; border: 0; font-size: 20px; line-height: 1; color: var(--steel); }
+#inspector p { margin: 6px 0; } #inspector .k { color: var(--steel); }
+#inspector .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+#inspector .links { display: flex; flex-wrap: wrap; gap: 6px; }
+#inspector .links button { background: var(--soft); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 8px; }
+.hidden { display: none !important; }
+
+/* welcome */
+#welcome { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(236,238,233,.96); overflow: auto; }
+#welcome .box { width: min(560px, 100%); background: var(--card); border: 1px solid var(--ink); border-radius: 4px; padding: 24px; box-shadow: 6px 6px 0 rgba(24,33,43,.12); }
+#welcome h1 { margin: 0 0 6px; font-size: 22px; } #welcome p { margin: 6px 0 14px; color: var(--steel); }
+#welcome .drop { border: 2px dashed var(--steel); border-radius: 4px; padding: 26px 12px; text-align: center; background: var(--soft); }
+#welcome .drop.over { border-color: var(--path); background: var(--path-bg); }
+#welcome .btns { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: 4px; padding: 7px 14px; }
+.btn.alt { background: var(--card); color: var(--ink); }
+#errors { margin-top: 14px; border: 1px solid var(--critical); background: #F8E4E8; border-radius: 4px; padding: 8px 12px; }
+#errors ul { margin: 4px 0 0; padding-left: 18px; }
+#recent { margin-top: 16px; } #recent h2 { font-size: 13px; margin: 0 0 6px; color: var(--steel); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header id="top">
+  <span class="brand">ATTACKGRAPH</span>
+  <span class="name" id="name"></span>
+  <span class="grow"></span>
+  <div class="meter hidden" id="meter" role="img"></div>
+  <span id="srv" class="hidden" style="display:flex;gap:8px;align-items:center">
+    <select id="saved" aria-label="Saved analyses"></select>
+    <button class="tbtn" id="openBtn" type="button">Open audit</button>
+    <a class="tbtn hidden" id="mdLink" style="text-decoration:none">Markdown</a>
+  </span>
+  <input type="file" id="file" accept=".json,application/json" class="hidden">
+</header>
+<main id="app">
+  <aside id="side" aria-label="Analysis"></aside>
+  <section id="stage" aria-label="Attack graph">
+    <svg id="svg" role="img" aria-label="Graph of assets, findings and attack paths"></svg>
+    <div id="banner" class="hidden"></div>
+    <div id="tools">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="fit">Fit</button>
+      <button type="button" id="reset">Re-arrange</button>
+    </div>
+    <div id="legend" aria-hidden="true"></div>
+    <div id="inspector" class="hidden"></div>
+    <div id="welcome" class="hidden">
+      <div class="box">
+        <h1>Open an audit file</h1>
+        <p>ATTACKGRAPH chains the weaknesses in your lab audit into attack paths, scores them and shows which fix removes the most risk.</p>
+        <div class="drop" id="drop">Drop an audit .json file here</div>
+        <div class="btns">
+          <button class="btn" type="button" id="pick">Choose file</button>
+          <button class="btn alt" type="button" id="trySample">Try the sample lab</button>
+        </div>
+        <div id="errors" class="hidden" role="alert"></div>
+        <div id="recent" class="hidden"><h2>Saved analyses</h2><div id="recentList" class="list" style="padding:0"></div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const EMBEDDED = /*ATTACKGRAPH_DATA*/null;
+
+/* ---------- tiny DOM helpers: text is always set via textContent, never innerHTML ---------- */
+const SVGNS = "http://www.w3.org/2000/svg";
+function make(ns, tag, props, kids) {
+  const el = ns ? document.createElementNS(SVGNS, tag) : document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of (kids || []).flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const h = (tag, props, ...kids) => make(false, tag, props, kids);
+const s = (tag, props, ...kids) => make(true, tag, props, kids);
+const $ = (id) => document.getElementById(id);
+const pct = (x) => Math.round(x * 100) + "%";
+const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
+const SEV_COLOR = { critical: "#B01E3C", high: "#D9732B", medium: "#B8942A", low: "#5F8F7B" };
+const clip = (t, n) => (t.length > n ? t.slice(0, n - 1) + "\u2026" : t);
+
+/* ---------- state ---------- */
+const st = { data: null, tab: "paths", path: null, node: null, preview: null, query: "", pos: {}, view: { x: 0, y: 0, k: 1 }, I: {} };
+
+function setData(data) {
+  st.data = data;
+  st.I = {
+    asset: Object.fromEntries(data.assets.map((a) => [a.id, a])),
+    finding: Object.fromEntries(data.findings.map((f) => [f.id, f])),
+    path: Object.fromEntries(data.paths.map((p) => [p.id, p])),
+  };
+  st.path = st.node = st.preview = null; st.tab = "paths"; st.query = "";
+  $("welcome").classList.add("hidden");
+  $("name").textContent = data.name;
+  $("name").title = data.name;
+  renderMeter(); layout(); renderAll(); fit();
+  const md = $("mdLink");
+  if (data.id) { md.href = "/api/analyses/" + encodeURIComponent(data.id) + "/report.md"; md.textContent = "Markdown"; md.classList.remove("hidden"); history.replaceState(null, "", "#a=" + data.id); }
+  else md.classList.add("hidden");
+}
+
+/* ---------- header meter ---------- */
+function renderMeter() {
+  const sm = st.data.summary, m = $("meter");
+  m.classList.remove("hidden");
+  m.setAttribute("aria-label", `Peak path risk ${sm.score.toFixed(1)} out of 10, ${sm.rating}`);
+  const color = { critical: "#E0476A", high: "#F08A45", medium: "#D9B643", low: "#7FB59E", none: "#34414E" }[sm.rating];
+  const cells = h("span", { class: "cells" });
+  for (let i = 1; i <= 10; i++) cells.append(h("i", { style: i <= Math.round(sm.score) ? `background:${color}` : "" }));
+  m.replaceChildren(h("span", {}, "Peak path risk"), cells, h("b", {}, sm.score.toFixed(1)), h("span", {}, sm.rating));
+}
+
+/* ---------- layout ---------- */
+const CARD_W = 276, HEAD_H = 50, ROW_H = 25, PAD_B = 10, COL_GAP = 130, ROW_GAP = 34;
+function layout() {
+  st.pos = {};
+  const cols = {};
+  st.data.assets.forEach((a) => (cols[a.layer] = cols[a.layer] || []).push(a));
+  const heights = {};
+  const keys = Object.keys(cols).map(Number).sort((a, b) => a - b);
+  for (const layer of keys) {
+    cols[layer].sort((a, b) => b.risk - a.risk || a.name.localeCompare(b.name));
+    heights[layer] = cols[layer].reduce((sum, a) => sum + cardHeight(a) + ROW_GAP, -ROW_GAP);
+  }
+  const tallest = Math.max(...Object.values(heights));
+  keys.forEach((layer, ci) => {
+    let y = (tallest - heights[layer]) / 2;
+    for (const a of cols[layer]) {
+      const hh = cardHeight(a);
+      st.pos[a.id] = { x: ci * (CARD_W + COL_GAP), y, w: CARD_W, h: hh };
+      y += hh + ROW_GAP;
+    }
+  });
+}
+const cardHeight = (a) => HEAD_H + a.findings.length * ROW_H + PAD_B;
+
+/* ---------- derived highlight state ---------- */
+function removedByPreview() {
+  if (!st.preview) return new Set();
+  const rec = st.data.recommendations.find((r) => r.finding === st.preview);
+  return new Set(rec ? rec.paths_removed : []);
+}
+function activeEdgeKeys() {
+  const keys = new Set();
+  if (st.path) { const p = st.I.path[st.path]; p.assets.slice(1).forEach((b, i) => keys.add(p.assets[i] + ">" + b)); }
+  return keys;
+}
+
+/* ---------- graph drawing ---------- */
+const svg = $("svg");
+let vp, edgeLayer, cardLayer;
+
+function drawGraph() {
+  svg.replaceChildren();
+  const defs = s("defs", {},
+    marker("arrow-n", "#9AA4AD"), marker("arrow-h", "#5E6C79"), marker("arrow-a", "#1D4ED8"),
+    s("pattern", { id: "grid", width: 28, height: 28, patternUnits: "userSpaceOnUse" },
+      s("path", { d: "M28 0H0V28", fill: "none", stroke: "#D9DCD5", "stroke-width": 1 })));
+  vp = s("g", { id: "vp" });
+  edgeLayer = s("g", {}); cardLayer = s("g", {});
+  vp.append(edgeLayer, cardLayer);
+  svg.append(defs, s("rect", { id: "bg", x: -20000, y: -20000, width: 40000, height: 40000, fill: "url(#grid)" }), vp);
+  drawEdges();
+  const removed = removedByPreview();
+  for (const a of st.data.assets) cardLayer.append(drawCard(a, removed));
+  applyView();
+}
+function marker(id, color) {
+  return s("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: "userSpaceOnUse", orient: "auto-start-reverse" },
+    s("path", { d: "M0 0L10 5L0 10z", fill: color }));
+}
+function anchor(p, toward) {
+  const cx = p.x + p.w / 2, cy = p.y + p.h / 2, dx = toward.x - cx, dy = toward.y - cy;
+  const t = Math.min((p.w / 2) / (Math.abs(dx) || 1e-6), (p.h / 2) / (Math.abs(dy) || 1e-6));
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+function curve(a, b) {
+  const ca = { x: a.x + a.w / 2, y: a.y + a.h / 2 }, cb = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+  const p1 = anchor(a, cb), p2 = anchor(b, ca);
+  const dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.hypot(dx, dy) || 1, off = Math.min(46, len * 0.14);
+  const c = { x: (p1.x + p2.x) / 2 - (dy / len) * off, y: (p1.y + p2.y) / 2 + (dx / len) * off };
+  return { d: `M${p1.x},${p1.y} Q${c.x},${c.y} ${p2.x},${p2.y}`, mid: { x: 0.25 * p1.x + 0.5 * c.x + 0.25 * p2.x, y: 0.25 * p1.y + 0.5 * c.y + 0.25 * p2.y } };
+}
+const DASH = { network: "", trust: "9 6", credentials: "2 5" };
+
+function drawEdges() {
+  edgeLayer.replaceChildren();
+  const active = activeEdgeKeys(), removed = removedByPreview(), anyActive = active.size > 0;
+  const labels = [];
+  for (const r of st.data.relations) {
+    const a = st.pos[r.source], b = st.pos[r.target];
+    const { d, mid } = curve(a, b);
+    const isActive = active.has(r.source + ">" + r.target);
+    const hot = r.on_paths.length > 0;
+    const gone = st.preview && hot && r.on_paths.every((p) => removed.has(p));
+    let color = hot ? "#5E6C79" : "#9AA4AD", width = hot ? 2 : 1.3, mk = hot ? "arrow-h" : "arrow-n", op = 1;
+    if (isActive) { color = "#1D4ED8"; width = 3.4; mk = "arrow-a"; }
+    else if (anyActive) op = 0.3;
+    if (gone) { op = 0.35; }
+    const dash = gone ? "3 6" : DASH[r.kind];
+    edgeLayer.append(s("path", { d, fill: "none", stroke: color, "stroke-width": width, "stroke-dasharray": dash || null, "marker-end": `url(#${mk})`, opacity: op, "stroke-linecap": "round" }));
+    if (isActive && r.kind !== "network") labels.push([mid, r.kind]);
+  }
+  for (const [mid, text] of labels) {
+    edgeLayer.append(s("rect", { x: mid.x - 34, y: mid.y - 10, width: 68, height: 18, rx: 3, fill: "#E3EAFC", stroke: "#1D4ED8" }),
+      s("text", { x: mid.x, y: mid.y + 3, "text-anchor": "middle", "font-size": 11, fill: "#1D4ED8", "font-family": "var(--mono)" }, text));
+  }
+}
+
+function drawCard(a, removed) {
+  const p = st.pos[a.id];
+  const onPath = st.path && st.I.path[st.path].assets.includes(a.id);
+  const dim = st.path && !onPath;
+  const sel = st.node && st.node.type === "asset" && st.node.id === a.id;
+  const g = s("g", { class: "card", transform: `translate(${p.x},${p.y})`, opacity: dim ? 0.45 : 1, "data-id": a.id });
+  g.append(s("rect", { width: p.w, height: p.h, rx: 4, fill: "#FAFAF7", stroke: onPath || sel ? "#1D4ED8" : "#18212B", "stroke-width": onPath || sel ? 2.5 : 1.2 }));
+  g.append(s("rect", { width: 6, height: p.h, rx: 2, fill: SEV_COLOR[a.criticality] }));
+  g.append(s("text", { x: 18, y: 21, "font-size": 14, "font-weight": 700, fill: "#18212B" }, clip(a.name, 28)));
+  g.append(s("text", { x: 18, y: 38, "font-size": 12, fill: "#5E6C79" }, `${a.type.replace(/_/g, " ")}, ${a.criticality}`));
+  let tx = p.w - 10;
+  const tag = (text, fill) => { const w = text.length * 6.6 + 12; tx -= w; g.append(s("rect", { x: tx, y: 8, width: w, height: 17, rx: 3, fill }), s("text", { x: tx + w / 2, y: 20, "text-anchor": "middle", "font-size": 11, fill: "#fff" }, text)); tx -= 5; };
+  if (a.is_target) tag("target", "#B01E3C");
+  if (a.is_entry) tag("internet", "#18212B");
+  a.findings.forEach((fid, i) => {
+    const f = st.I.finding[fid], y = HEAD_H + i * ROW_H;
+    const used = st.path && f.on_paths.includes(st.path);
+    const fixed = st.preview === fid;
+    const row = s("g", { class: "frow" + (st.node && st.node.type === "finding" && st.node.id === fid ? " sel" : ""), transform: `translate(0,${y})`, "data-fid": fid, opacity: fixed ? 0.5 : 1 });
+    row.append(s("rect", { class: "hit", x: 8, y: 0, width: p.w - 16, height: ROW_H - 2, rx: 3, fill: used ? "#E3EAFC" : "transparent" }));
+    const hollow = f.kind === "missing_control";
+    row.append(s("circle", { cx: 20, cy: 11, r: 5, fill: hollow ? "none" : SEV_COLOR[f.severity], stroke: SEV_COLOR[f.severity], "stroke-width": 2 }));
+    row.append(s("text", { x: 32, y: 15, "font-size": 12.5, fill: "#18212B", "text-decoration": fixed ? "line-through" : null }, clip(f.title, 34)));
+    row.append(s("title", {}, `${f.id} (${f.severity} ${f.kind.replace("_", " ")}): ${f.title}`));
+    g.append(row);
+  });
+  enableDrag(g, a.id);
+  return g;
+}
+
+/* ---------- pointer interaction ---------- */
+function toWorld(ev) {
+  const r = svg.getBoundingClientRect();
+  return { x: (ev.clientX - r.left - st.view.x) / st.view.k, y: (ev.clientY - r.top - st.view.y) / st.view.k };
+}
+function enableDrag(g, id) {
+  g.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    ev.stopPropagation();
+    const start = toWorld(ev), p = st.pos[id], ox = p.x, oy = p.y;
+    const fid = ev.target.closest && ev.target.closest(".frow") ? ev.target.closest(".frow").dataset.fid : null;
+    let moved = false;
+    g.setPointerCapture(ev.pointerId); g.classList.add("drag");
+    const move = (e) => {
+      const w = toWorld(e), dx = w.x - start.x, dy = w.y - start.y;
+      if (!moved && Math.hypot(dx, dy) * st.view.k < 4) return;
+      moved = true; p.x = ox + dx; p.y = oy + dy;
+      g.setAttribute("transform", `translate(${p.x},${p.y})`); drawEdges();
+    };
+    const up = () => {
+      g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.classList.remove("drag");
+      if (!moved) select(fid ? { type: "finding", id: fid } : { type: "asset", id });
+    };
+    g.addEventListener("pointermove", move); g.addEventListener("pointerup", up);
+  });
+}
+svg.addEventListener("pointerdown", (ev) => {
+  if (ev.button !== 0 || ev.target.closest(".card")) return;
+  const sx = ev.clientX, sy = ev.clientY, ox = st.view.x, oy = st.view.y;
+  let moved = false;
+  svg.setPointerCapture(ev.pointerId); svg.classList.add("panning");
+  const move = (e) => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 3) moved = true; st.view.x = ox + e.clientX - sx; st.view.y = oy + e.clientY - sy; applyView(); };
+  const up = () => { svg.removeEventListener("pointermove", move); svg.removeEventListener("pointerup", up); svg.classList.remove("panning"); if (!moved) select(null); };
+  svg.addEventListener("pointermove", move); svg.addEventListener("pointerup", up);
+});
+svg.addEventListener("wheel", (ev) => { ev.preventDefault(); zoomAt(ev, Math.exp(-ev.deltaY * 0.0015)); }, { passive: false });
+function zoomAt(ev, factor) {
+  const r = svg.getBoundingClientRect(), mx = (ev ? ev.clientX : r.left + r.width / 2) - r.left, my = (ev ? ev.clientY : r.top + r.height / 2) - r.top;
+  const k = Math.min(2.5, Math.max(0.2, st.view.k * factor)), real = k / st.view.k;
+  st.view.x = mx - (mx - st.view.x) * real; st.view.y = my - (my - st.view.y) * real; st.view.k = k; applyView();
+}
+function applyView() { if (vp) vp.setAttribute("transform", `translate(${st.view.x},${st.view.y}) scale(${st.view.k})`); }
+function fit() {
+  if (!st.data) return;
+  const ps = Object.values(st.pos), r = svg.getBoundingClientRect();
+  const x0 = Math.min(...ps.map((p) => p.x)), y0 = Math.min(...ps.map((p) => p.y));
+  const x1 = Math.max(...ps.map((p) => p.x + p.w)), y1 = Math.max(...ps.map((p) => p.y + p.h));
+  const k = Math.min(1.1, (r.width - 60) / (x1 - x0), (r.height - 110) / (y1 - y0));
+  st.view = { k, x: (r.width - (x1 - x0) * k) / 2 - x0 * k, y: (r.height - (y1 - y0) * k) / 2 - y0 * k + 20 };
+  applyView();
+}
+$("zin").onclick = () => zoomAt(null, 1.25); $("zout").onclick = () => zoomAt(null, 0.8); $("fit").onclick = fit;
+$("reset").onclick = () => { layout(); drawGraph(); fit(); };
+window.addEventListener("resize", () => st.data && fit());
+
+/* ---------- selection ---------- */
+function select(node) { st.node = node; if (st.tab === "findings") renderSide(); drawGraph(); renderInspector(); }
+function selectPath(id) { st.path = st.path === id ? null : id; if (st.path) st.preview = null; renderAll(); }
+function togglePreview(fid) { st.preview = st.preview === fid ? null : fid; if (st.preview) st.path = null; renderAll(); }
+
+/* ---------- sidebar ---------- */
+function renderAll() { renderSide(); drawGraph(); renderInspector(); renderBanner(); renderLegend(); }
+
+function renderSide() {
+  const d = st.data, side = $("side");
+  const tab = (id, label, n) => h("button", { role: "tab", "aria-selected": String(st.tab === id), onclick: () => { st.tab = id; renderSide(); } }, label, h("small", {}, n));
+  const tabs = h("div", { class: "tabs", role: "tablist" }, tab("paths", "Attack paths", d.paths.length), tab("fixes", "Fixes", d.recommendations.length), tab("findings", "Findings", d.findings.length));
+  let body;
+  if (st.tab === "paths") body = pathsList();
+  else if (st.tab === "fixes") body = fixesList();
+  else body = findingsList();
+  side.replaceChildren(...[tabs, d.notes.length ? h("div", { class: "notes" }, d.notes.join(" ")) : null, ...body].filter(Boolean));
+}
+function pathsList() {
+  const d = st.data;
+  if (!d.paths.length) return [h("div", { class: "empty" }, "No attack path leads to a critical asset. Check the notes above if you expected one.")];
+  const list = h("div", { class: "list" });
+  for (const p of d.paths) {
+    const on = st.path === p.id;
+    list.append(h("button", { class: "item" + (on ? " on" : ""), "aria-expanded": String(on), onclick: () => selectPath(p.id) },
+      h("span", { class: "risk r-" + p.rating }, p.risk.toFixed(1)),
+      h("span", { class: "body" }, h("span", { class: "sum" }, p.summary.split(" > ").join(" \u2192 ")),
+        h("span", { class: "meta" }, `${pct(p.likelihood)} likely, ${p.steps.length} step${p.steps.length > 1 ? "s" : ""}` + (p.blind_spots.length ? `, ${p.blind_spots.length} detection gap${p.blind_spots.length > 1 ? "s" : ""}` : "")))));
+    if (on) {
+      const ol = h("ol", { class: "steps" });
+      p.steps.forEach((stp) => ol.append(h("li", {}, stp.text, " ", h("span", { class: "p" }, `(${pct(stp.probability)} success)`))));
+      if (p.blind_spots.length) ol.append(h("li", { class: "p" }, "Nobody is likely to notice: " + p.blind_spots.map((f) => st.I.finding[f].title).join("; ") + "."));
+      list.append(ol);
+    }
+  }
+  return [list];
+}
+function fixesList() {
+  const d = st.data;
+  if (!d.recommendations.length) return [h("div", { class: "empty" }, d.paths.length ? "No single fix reduces the risk." : "Nothing to fix: no attack path remains.")];
+  const list = h("div", { class: "list" });
+  for (const r of d.recommendations) {
+    const f = st.I.finding[r.finding], a = st.I.asset[f.asset], on = st.preview === r.finding;
+    const effect = r.paths_removed.length ? `Cuts ${r.paths_removed.length} of ${d.paths.length} paths` : "Keeps every path but makes them less likely";
+    list.append(h("div", { class: "item" + (on ? " on" : ""), style: "flex-direction:column;gap:4px" },
+      h("div", { style: "display:flex;gap:8px" }, h("span", { class: "dot c-" + f.severity }), h("div", { class: "body" }, h("span", { class: "sum" }, f.title), h("span", { class: "meta" }, `${a.name}, ${f.id}`))),
+      h("div", { class: "meta" }, `${effect}. Exposure \u2212${r.exposure_reduction_pct}%, peak score ${r.score_after.toFixed(1)}.`),
+      h("div", { class: "act" }, f.action),
+      h("div", { class: "row2" }, h("button", { class: "pill", "aria-pressed": String(on), onclick: () => togglePreview(r.finding) }, on ? "Previewing" : "Preview on graph"),
+        h("button", { class: "pill", onclick: () => select({ type: "finding", id: f.id }) }, "Details"))));
+  }
+  return [list];
+}
+function findingsList() {
+  const d = st.data, q = st.query.toLowerCase();
+  const search = h("input", { class: "search", type: "search", placeholder: "Filter findings", value: st.query, "aria-label": "Filter findings",
+    oninput: (e) => { st.query = e.target.value; const pos = e.target.selectionStart; renderSide(); const n = $("side").querySelector("input"); n.focus(); n.setSelectionRange(pos, pos); } });
+  const items = d.findings.filter((f) => !q || (f.title + f.id + st.I.asset[f.asset].name + f.kind).toLowerCase().includes(q))
+    .sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || a.id.localeCompare(b.id));
+  const list = h("div", { class: "list" });
+  if (!items.length) list.append(h("div", { class: "empty" }, "No finding matches."));
+  for (const f of items) {
+    const on = st.node && st.node.type === "finding" && st.node.id === f.id;
+    list.append(h("button", { class: "item" + (on ? " on" : ""), onclick: () => select({ type: "finding", id: f.id }) },
+      h("span", { class: "dot c-" + f.severity + (f.kind === "missing_control" ? " hollow" : "") }),
+      h("span", { class: "body" }, h("span", { class: "sum" }, f.title),
+        h("span", { class: "meta" }, `${st.I.asset[f.asset].name}, ${f.severity}, ${f.kind.replace("_", " ")}` + (f.on_paths.length ? `, on ${f.on_paths.length} path${f.on_paths.length > 1 ? "s" : ""}` : "")))));
+  }
+  return [search, list];
+}
+
+/* ---------- inspector ---------- */
+function renderInspector() {
+  const box = $("inspector"), n = st.node;
+  if (!n) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  const close = h("button", { class: "x", "aria-label": "Close details", onclick: () => select(null) }, "\u00d7");
+  const pathLinks = (ids) => ids.length ? h("div", { class: "links" }, ids.map((id) => h("button", { type: "button", onclick: () => { st.path = id; st.preview = null; renderAll(); } }, id))) : h("span", { class: "k" }, "none");
+  if (n.type === "finding") {
+    const f = st.I.finding[n.id], a = st.I.asset[f.asset];
+    box.replaceChildren(...[close, h("h3", {}, f.title),
+      h("div", { class: "chips" }, h("span", { class: "pill c-" + f.severity }, f.severity), h("span", { class: "pill" }, f.kind.replace("_", " ")), h("span", { class: "pill mono" }, f.id), f.cve ? h("span", { class: "pill mono" }, f.cve) : null),
+      h("p", {}, h("span", { class: "k" }, "Asset: "), a.name),
+      f.description ? h("p", {}, f.description) : null,
+      h("p", {}, h("span", { class: "k" }, f.kind === "missing_control" ? "Hides attackers on paths: " : "Used on paths: "), pathLinks(f.on_paths)),
+      h("p", {}, h("b", {}, "How to fix. "), f.action),
+      st.data.recommendations.some((r) => r.finding === f.id) ? h("button", { class: "pill", "aria-pressed": String(st.preview === f.id), onclick: () => togglePreview(f.id) }, "Preview this fix") : null].filter(Boolean));
+  } else {
+    const a = st.I.asset[n.id];
+    const out = st.data.relations.filter((r) => r.source === a.id), inc = st.data.relations.filter((r) => r.target === a.id);
+    const rel = (r, other) => h("li", {}, `${st.I.asset[other].name} (${r.kind}${r.description ? ": " + r.description : ""})`);
+    box.replaceChildren(...[close, h("h3", {}, a.name),
+      h("div", { class: "chips" }, h("span", { class: "pill" }, a.type.replace(/_/g, " ")), h("span", { class: "pill c-" + a.criticality }, a.criticality + " criticality"), h("span", { class: "pill" }, a.exposure), a.risk ? h("span", { class: "pill" }, "worst path " + a.risk.toFixed(1)) : null),
+      out.length ? h("div", {}, h("span", { class: "k" }, "Can reach"), h("ul", {}, out.map((r) => rel(r, r.target)))) : null,
+      inc.length ? h("div", {}, h("span", { class: "k" }, "Reached from"), h("ul", {}, inc.map((r) => rel(r, r.source)))) : null,
+      h("p", {}, h("span", { class: "k" }, "Findings: "), a.findings.length ? a.findings.length : "none")].filter(Boolean));
+  }
+}
+
+/* ---------- banner + legend ---------- */
+function renderBanner() {
+  const b = $("banner");
+  if (!st.preview) { b.classList.add("hidden"); return; }
+  const r = st.data.recommendations.find((x) => x.finding === st.preview), f = st.I.finding[st.preview];
+  b.classList.remove("hidden");
+  b.replaceChildren(h("span", {}, h("b", {}, `If ${f.id} is fixed: `), `peak score ${st.data.summary.score.toFixed(1)} \u2192 ${r.score_after.toFixed(1)}, ${r.paths_removed.length} path${r.paths_removed.length === 1 ? "" : "s"} cut, exposure \u2212${r.exposure_reduction_pct}%.`),
+    h("button", { type: "button", onclick: () => togglePreview(st.preview) }, "Clear"));
+}
+function renderLegend() {
+  const line = (dash, color) => s("svg", { width: 30, height: 8 }, s("line", { x1: 0, y1: 4, x2: 30, y2: 4, stroke: color, "stroke-width": 2, "stroke-dasharray": dash || null }));
+  const dot = (hollow) => s("svg", { width: 14, height: 12 }, s("circle", { cx: 7, cy: 6, r: 4.5, fill: hollow ? "none" : "#5E6C79", stroke: "#5E6C79", "stroke-width": 2 }));
+  $("legend").replaceChildren(
+    h("span", {}, line("", "#5E6C79"), "network"), h("span", {}, line("9 6", "#5E6C79"), "trust"), h("span", {}, line("2 5", "#5E6C79"), "credentials"),
+    h("span", {}, line("", "#1D4ED8"), "selected path"), h("span", {}, dot(false), "weakness"), h("span", {}, dot(true), "missing control"));
+}
+
+/* ---------- server mode: open files, history ---------- */
+function showErrors(list) {
+  const box = $("errors"); box.classList.remove("hidden");
+  box.replaceChildren(...[h("b", {}, "This file can't be analyzed yet."), h("ul", {}, list.slice(0, 12).map((e) => h("li", {}, e))), list.length > 12 ? h("div", {}, `\u2026and ${list.length - 12} more.`) : null].filter(Boolean));
+  $("welcome").classList.remove("hidden");
+}
+async function analyzeText(text) {
+  let payload;
+  try { payload = JSON.parse(text); } catch (e) { showErrors(["invalid JSON: " + e.message]); return; }
+  try {
+    const res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const body = await res.json();
+    if (!res.ok) { showErrors(body.detail && body.detail.errors ? body.detail.errors : ["Server error " + res.status]); return; }
+    $("errors").classList.add("hidden"); setData(body); loadSaved();
+  } catch (e) { showErrors(["Could not reach the server: " + e.message]); }
+}
+async function openFile(file) { if (file) analyzeText(await file.text()); }
+async function loadAnalysis(id) {
+  const res = await fetch("/api/analyses/" + encodeURIComponent(id));
+  if (res.ok) setData(await res.json());
+}
+async function loadSaved() {
+  try {
+    const list = await (await fetch("/api/analyses")).json();
+    const sel = $("saved");
+    sel.replaceChildren(h("option", { value: "" }, list.length ? "Saved analyses" : "No saved analyses"), ...list.map((a) => h("option", { value: a.id }, `${a.name} (${a.score.toFixed(1)})`)));
+    sel.onchange = () => sel.value && loadAnalysis(sel.value);
+    const rl = $("recentList"); $("recent").classList.toggle("hidden", !list.length);
+    rl.replaceChildren(...list.slice(0, 5).map((a) => h("button", { class: "item", onclick: () => loadAnalysis(a.id) }, h("span", { class: "risk r-none" }, a.score.toFixed(1)), h("span", { class: "body" }, h("span", { class: "sum" }, a.name), h("span", { class: "meta" }, a.created_at)))));
+  } catch (e) { /* history is optional */ }
+}
+function initServerMode() {
+  $("srv").classList.remove("hidden"); $("srv").style.display = "flex";
+  const input = $("file");
+  $("openBtn").onclick = () => $("welcome").classList.remove("hidden");
+  $("pick").onclick = () => input.click();
+  input.onchange = () => { openFile(input.files[0]); input.value = ""; };
+  $("trySample").onclick = async () => analyzeText(JSON.stringify(await (await fetch("/api/sample")).json()));
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", (e) => openFile(e.dataTransfer.files[0]));
+  loadSaved();
+  const m = location.hash.match(/^#a=([0-9a-f]+)$/);
+  if (m) loadAnalysis(m[1]); else $("welcome").classList.remove("hidden");
+}
+
+/* ---------- boot ---------- */
+renderLegend();
+if (EMBEDDED) setData(EMBEDDED); else initServerMode();
+</script>
+</body>
+</html>

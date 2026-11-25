@@ -1,0 +1,11 @@
+services:
+  attackgraph:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - attackgraph-data:/data
+    restart: unless-stopped
+
+volumes:
+  attackgraph-data:
