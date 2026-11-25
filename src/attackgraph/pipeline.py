@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 import networkx as nx
 
 from attackgraph import __version__
-from attackgraph.graph import build_graph
 from attackgraph.models import AuditData, Level, RelationKind
 from attackgraph.normalization import AuditValidationError
 from attackgraph.remediation import suggest_action
@@ -83,7 +82,6 @@ def analyze(audit: AuditData, fixed: Iterable[str] = ()) -> dict:
     paths = find_paths(audit, fixed)
     recs = recommend(audit, paths, fixed)
     path_ids = {p.signature: f"P{i}" for i, p in enumerate(paths, 1)}
-    graph = build_graph(audit, fixed)
     layers = _layers(audit)
     entries = {a.id for a in entry_assets(audit)}
     targets = {a.id for a in target_assets(audit)}
